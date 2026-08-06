@@ -1,11 +1,9 @@
 import os
 import re
-from io import BytesIO
+import tempfile
 from pypdf import PdfReader, PdfWriter
 from math import floor
-from PIL import Image
 from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 
 PAGE_W = 12                    # inches
 PAGE_H = 18
@@ -34,7 +32,7 @@ START_X = (PAGE_W_PT - GRID_W) / 2
 START_Y = (PAGE_H_PT - GRID_H) / 2
 PER_PAGE = COLS * ROWS
 
-def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
+def generate_layout(start_set: int, end_set: int, images_dir: str):
     folders = []
     for item in os.listdir(images_dir):
         folder_path = os.path.join(images_dir, item)
@@ -63,7 +61,7 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
         raise Exception(f"No .png images found in subfolders of {images_dir}")
 
     # --- PRE-GENERATE BACK PAGES ---
-    backs_pdf = BytesIO()
+    backs_pdf = tempfile.TemporaryFile()
     c_backs = canvas.Canvas(backs_pdf, pagesize=(PAGE_W_PT, PAGE_H_PT))
     for start in range(0, len(pairs), PER_PAGE):
         current_pairs = pairs[start:start + PER_PAGE]
@@ -76,10 +74,8 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
             mirrored_x = PAGE_W_PT - x_front - CARD_W_PT
             
             if back:
-                pil_back = Image.open(back)
-                img_back = ImageReader(pil_back)
                 c_backs.drawImage(
-                    img_back, mirrored_x, y,
+                    back, mirrored_x, y,
                     width=CARD_W_PT, height=CARD_H_PT,
                     preserveAspectRatio=False, mask='auto'
                 )
@@ -89,7 +85,7 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
     backs_reader = PdfReader(backs_pdf)
 
     # --- PRE-GENERATE FRONT BASE PAGES ---
-    fronts_base_pdf = BytesIO()
+    fronts_base_pdf = tempfile.TemporaryFile()
     c_fronts = canvas.Canvas(fronts_base_pdf, pagesize=(PAGE_W_PT, PAGE_H_PT))
     for start in range(0, len(pairs), PER_PAGE):
         current_pairs = pairs[start:start + PER_PAGE]
@@ -100,10 +96,8 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
             x = START_X + (col * CARD_W_PT)
             y = PAGE_H_PT - START_Y - ((row + 1) * CARD_H_PT)
             
-            pil_front = Image.open(front)
-            img_front = ImageReader(pil_front)
             c_fronts.drawImage(
-                img_front, x, y,
+                front, x, y,
                 width=CARD_W_PT, height=CARD_H_PT,
                 preserveAspectRatio=False, mask='auto'
             )
@@ -115,7 +109,7 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
 
     for set_num in range(start_set, end_set + 1):
         # Create Overlay PDF (just the text numbers)
-        overlay_pdf = BytesIO()
+        overlay_pdf = tempfile.TemporaryFile()
         c_overlay = canvas.Canvas(overlay_pdf, pagesize=(PAGE_W_PT, PAGE_H_PT))
         
         for start in range(0, len(pairs), PER_PAGE):
@@ -154,7 +148,7 @@ def generate_layout(start_set: int, end_set: int, images_dir: str) -> BytesIO:
             final_writer.add_page(front_page)
             final_writer.add_page(backs_reader.pages[i])
             
-    final_output = BytesIO()
+    final_output = tempfile.TemporaryFile()
     final_writer.write(final_output)
     final_output.seek(0)
     
