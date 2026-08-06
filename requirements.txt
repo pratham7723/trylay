@@ -1,0 +1,5 @@
+Flask
+Pillow
+reportlab
+pypdf
+gunicorn
